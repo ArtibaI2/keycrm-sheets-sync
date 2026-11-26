@@ -25,6 +25,15 @@ const WATCHED_SHEET_GIDS = new Set([
   588886751,
 ]);
 
+function notify_(message) {
+  Logger.log(message);
+  try {
+    SpreadsheetApp.getUi().alert(message);
+  } catch (_) {
+    // Runs safely from Apps Script editor IDE where getUi() is unavailable
+  }
+}
+
 /**
  * Запустіть один раз вручну, щоб зберегти налаштування GitHub.
  */
@@ -35,7 +44,12 @@ function saveGithubSettings() {
     GITHUB_REPO: "keycrm-sheets-sync",
     GITHUB_TOKEN: "github_pat_REPLACE_ME", // Fine-grained PAT з правами Actions: Read & write
   });
-  SpreadsheetApp.getUi().alert("Налаштування GitHub збережено!");
+  notify_("Налаштування GitHub збережено!");
+}
+
+function setupAll() {
+  saveGithubSettings();
+  setupEditTrigger();
 }
 
 function onOpen() {
@@ -51,14 +65,14 @@ function onOpen() {
 
 function menuRunSync() {
   triggerGithubSync(false);
-  SpreadsheetApp.getUi().alert(
+  notify_(
     "Синхронізацію запущено на GitHub Actions!\nОновлення в KeyCRM і Shopify займе ~1–2 хвилини."
   );
 }
 
 function menuRunDryRun() {
   triggerGithubSync(true);
-  SpreadsheetApp.getUi().alert("Тестовий прогін (Dry Run) запущено в GitHub Actions.");
+  notify_("Тестовий прогін (Dry Run) запущено в GitHub Actions.");
 }
 
 /**
@@ -70,7 +84,7 @@ function setupEditTrigger() {
     .forSpreadsheet(SpreadsheetApp.getActive())
     .onEdit()
     .create();
-  SpreadsheetApp.getUi().alert(
+  notify_(
     "Автозапуск увімкнено! Після завершення правок у таблиці синк запуститься автоматично через 2 хвилини."
   );
 }
