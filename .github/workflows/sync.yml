@@ -1,23 +1,21 @@
-name: Sync Google Sheets to KeyCRM & Shopify
+﻿name: Sync Google Sheets to KeyCRM and Shopify
 
 on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Тестовий прогін без змін у CRM і Shopify (dry-run)"
+        description: "Dry-run (no writes to CRM or Shopify)"
         required: false
         default: false
         type: boolean
       sku:
-        description: "Фільтр по одному базовому артикулу (необов'язково)"
+        description: "Filter by one base SKU (optional)"
         required: false
         default: ""
         type: string
   schedule:
-    # Щодня о 06:00 UTC (08:00 за зимовим / 09:00 за літнім часом Києва)
     - cron: "0 6 * * *"
 
-# Не запускаємо два синки паралельно через ліміт KeyCRM (20 req/min).
 concurrency:
   group: keycrm-shopify-sync
   cancel-in-progress: false
@@ -60,7 +58,6 @@ jobs:
           SHOPIFY_LOCATION_KYIV_ID: ${{ vars.SHOPIFY_LOCATION_KYIV_ID }}
           SHOPIFY_LOCATION_LUTSK_ID: ${{ vars.SHOPIFY_LOCATION_LUTSK_ID }}
         run: |
-          # Apply defaults for vars not set in GitHub repository variables
           export KEYCRM_BASE_URL="${KEYCRM_BASE_URL:-https://openapi.keycrm.app/v1}"
           export KEYCRM_RATE_LIMIT_PER_MIN="${KEYCRM_RATE_LIMIT_PER_MIN:-18}"
           export KEYCRM_WAREHOUSE_KYIV_ID="${KEYCRM_WAREHOUSE_KYIV_ID:-1}"
@@ -82,42 +79,34 @@ jobs:
           node src/index.js "${ARGS[@]}" > sync-summary.json
           cat sync-summary.json
 
-      - name: Publish GitHub Actions Step Summary
+      - name: Publish step summary
         if: always() && hashFiles('sync-summary.json') != ''
         run: |
           node -e '
             const fs = require("fs");
             try {
               const s = JSON.parse(fs.readFileSync("sync-summary.json", "utf8"));
-              const counts = (s.plan || []).reduce((acc, p) => {
-                acc[p.action] = (acc[p.action] || 0) + 1;
-                return acc;
-              }, {});
+              const counts = (s.plan || []).reduce((a,p)=>{ a[p.action]=(a[p.action]||0)+1; return a; },{});
               const lines = [
-                `## ${s.dryRun ? "🧪 Dry Run" : "✅ Live Sync"} — KeyCRM & Shopify`,
-                `- **Товарів розібрано:** ${s.productsParsed}`,
-                `- **Варіантів розібрано:** ${s.variantsParsed}`,
-                `- **Оферів знайдено в KeyCRM:** ${s.existingOffersFound}`,
-                `- **KeyCRM створено / оновлено залишків:** ${s.keycrmCreated || 0} / ${s.keycrmStockUpdates || 0}`,
-                `- **Shopify створено / оновлено залишків:** ${s.shopifyCreated || 0} / ${s.shopifyStockUpdates || 0}`,
-                `- **Попереджень:** ${(s.warnings || []).length}`,
-                `- **Помилок:** ${(s.errors || []).length}`,
+                "## " + (s.dryRun ? "Dry Run" : "Live Sync") + " - KeyCRM and Shopify",
+                "- Products parsed: " + s.productsParsed,
+                "- Variants parsed: " + s.variantsParsed,
+                "- Existing offers found: " + s.existingOffersFound,
+                "- KeyCRM created / stocks updated: " + (s.keycrmCreated||0) + " / " + (s.keycrmStockUpdates||0),
+                "- Shopify created / stocks updated: " + (s.shopifyCreated||0) + " / " + (s.shopifyStockUpdates||0),
+                "- Warnings: " + (s.warnings||[]).length,
                 "",
-                "### Дії плану:",
+                "### Plan counts:",
                 "```json",
                 JSON.stringify(counts, null, 2),
                 "```"
               ];
-              if ((s.warnings || []).length) {
-                lines.push("", "### Попередження:");
-                for (const w of s.warnings.slice(0, 30)) lines.push(`- ${w}`);
-              }
-              if ((s.errors || []).length) {
-                lines.push("", "### Помилки:");
-                for (const e of s.errors.slice(0, 30)) lines.push(`- ${e}`);
+              if ((s.warnings||[]).length) {
+                lines.push("", "### Warnings:");
+                for (const w of (s.warnings||[]).slice(0,30)) lines.push("- " + w);
               }
               fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
-            } catch (err) {
-              fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Failed to parse sync-summary.json: ${err.message}\n`);
+            } catch(err) {
+              fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, "Failed: " + err.message + "\n");
             }
           '
