@@ -1,0 +1,16 @@
+{
+  "name": "keycrm-sheets-sync",
+  "version": "1.0.0",
+  "description": "Sync products, size variants, and Kyiv/Lutsk warehouse stocks from Google Sheets to KeyCRM (and optionally Shopify)",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "sync": "node src/index.js sync",
+    "dry-run": "node src/index.js sync --dry-run",
+    "discover": "node src/index.js discover-warehouses",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

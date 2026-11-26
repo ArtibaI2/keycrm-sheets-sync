@@ -1,0 +1,25 @@
+{
+  "columns": {
+    "sku": "АРТИКУЛ",
+    "name": "__col0",
+    "color": "КОЛІР",
+    "price": "ЦІНА",
+    "purchasedPrice": "Собівартість",
+    "description": "Опис",
+    "pictures": "ФОТО",
+    "category": "Категорія",
+    "stock": "СКЛАД",
+    "kyiv": "Киів",
+    "lutsk": "Луцьк",
+    "reserve": "Резерв"
+  },
+  "skuPattern": "{baseSku}-{size}",
+  "sizePropertyName": "Розмір",
+  "colorPropertyName": "Колір",
+  "currencyCode": "UAH",
+  "createMissingProducts": true,
+  "updateExistingOffers": true,
+  "syncZeroStocks": true,
+  "shopifyCreateZeroStockProducts": false,
+  "defaultPrice": 0
+}

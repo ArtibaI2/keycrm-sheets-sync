@@ -1,0 +1,112 @@
+name: Sync Google Sheets to KeyCRM & Shopify
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Тестовий прогін без змін у CRM і Shopify (dry-run)"
+        required: false
+        default: false
+        type: boolean
+      sku:
+        description: "Фільтр по одному базовому артикулу (необов'язково)"
+        required: false
+        default: ""
+        type: string
+  schedule:
+    # Щодня о 06:00 UTC (08:00 за зимовим / 09:00 за літнім часом Києва)
+    - cron: "0 6 * * *"
+
+# Не запускаємо два синки паралельно через ліміт KeyCRM (20 req/min).
+# Якщо під час запуску прийде новий тригер, він стане в чергу, а не скасує поточний.
+concurrency:
+  group: keycrm-shopify-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Run sync
+        id: run_sync
+        env:
+          KEYCRM_API_KEY: ${{ secrets.KEYCRM_API_KEY }}
+          KEYCRM_BASE_URL: ${{ vars.KEYCRM_BASE_URL || 'https://openapi.keycrm.app/v1' }}
+          KEYCRM_RATE_LIMIT_PER_MIN: ${{ vars.KEYCRM_RATE_LIMIT_PER_MIN || '18' }}
+          KEYCRM_WAREHOUSE_KYIV_ID: ${{ vars.KEYCRM_WAREHOUSE_KYIV_ID || '1' }}
+          KEYCRM_WAREHOUSE_LUTSK_ID: ${{ vars.KEYCRM_WAREHOUSE_LUTSK_ID || '1' }}
+          RESERVE_MODE: ${{ vars.RESERVE_MODE || 'ignore' }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_GIDS: ${{ vars.GOOGLE_SHEET_GIDS || '1934858652,1441866253,1265295383,1829566062,0,588886751' }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SHOPIFY_ENABLED: ${{ vars.SHOPIFY_ENABLED || 'true' }}
+          SHOPIFY_STORE_DOMAIN: ${{ vars.SHOPIFY_STORE_DOMAIN || 'tnwtdg-rm.myshopify.com' }}
+          SHOPIFY_CLIENT_ID: ${{ secrets.SHOPIFY_CLIENT_ID }}
+          SHOPIFY_CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET }}
+          SHOPIFY_ADMIN_TOKEN: ${{ secrets.SHOPIFY_ADMIN_TOKEN }}
+          SHOPIFY_API_VERSION: ${{ vars.SHOPIFY_API_VERSION || '2025-01' }}
+          SHOPIFY_LOCATION_KYIV_ID: ${{ vars.SHOPIFY_LOCATION_KYIV_ID || '75696504907' }}
+          SHOPIFY_LOCATION_LUTSK_ID: ${{ vars.SHOPIFY_LOCATION_LUTSK_ID }}
+        run: |
+          ARGS=("sync")
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS+=("--dry-run")
+          fi
+          if [ -n "${{ inputs.sku }}" ]; then
+            ARGS+=("--sku=${{ inputs.sku }}")
+          fi
+          node src/index.js "${ARGS[@]}" > sync-summary.json
+          cat sync-summary.json
+
+      - name: Publish GitHub Actions Step Summary
+        if: always() && hashFiles('sync-summary.json') != ''
+        run: |
+          node -e '
+            const fs = require("fs");
+            try {
+              const s = JSON.parse(fs.readFileSync("sync-summary.json", "utf8"));
+              const counts = (s.plan || []).reduce((acc, p) => {
+                acc[p.action] = (acc[p.action] || 0) + 1;
+                return acc;
+              }, {});
+              const lines = [
+                `## ${s.dryRun ? "🧪 Dry Run" : "✅ Live Sync"} — KeyCRM & Shopify`,
+                `- **Товарів розібрано:** ${s.productsParsed}`,
+                `- **Варіантів розібрано:** ${s.variantsParsed}`,
+                `- **Оферів знайдено в KeyCRM:** ${s.existingOffersFound}`,
+                `- **KeyCRM створено / оновлено залишків:** ${s.keycrmCreated || 0} / ${s.keycrmStockUpdates || 0}`,
+                `- **Shopify створено / оновлено залишків:** ${s.shopifyCreated || 0} / ${s.shopifyStockUpdates || 0}`,
+                `- **Попереджень:** ${(s.warnings || []).length}`,
+                `- **Помилок:** ${(s.errors || []).length}`,
+                "",
+                "### Дії плану:",
+                "```json",
+                JSON.stringify(counts, null, 2),
+                "```"
+              ];
+              if ((s.warnings || []).length) {
+                lines.push("", "### Попередження:");
+                for (const w of s.warnings.slice(0, 30)) lines.push(`- ${w}`);
+              }
+              if ((s.errors || []).length) {
+                lines.push("", "### Помилки:");
+                for (const e of s.errors.slice(0, 30)) lines.push(`- ${e}`);
+              }
+              fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
+            } catch (err) {
+              fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Failed to parse sync-summary.json: ${err.message}\n`);
+            }
+          '
