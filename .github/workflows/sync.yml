@@ -18,7 +18,6 @@ on:
     - cron: "0 6 * * *"
 
 # Не запускаємо два синки паралельно через ліміт KeyCRM (20 req/min).
-# Якщо під час запуску прийде новий тригер, він стане в чергу, а не скасує поточний.
 concurrency:
   group: keycrm-shopify-sync
   cancel-in-progress: false
@@ -44,23 +43,35 @@ jobs:
         id: run_sync
         env:
           KEYCRM_API_KEY: ${{ secrets.KEYCRM_API_KEY }}
-          KEYCRM_BASE_URL: ${{ vars.KEYCRM_BASE_URL || 'https://openapi.keycrm.app/v1' }}
-          KEYCRM_RATE_LIMIT_PER_MIN: ${{ vars.KEYCRM_RATE_LIMIT_PER_MIN || '18' }}
-          KEYCRM_WAREHOUSE_KYIV_ID: ${{ vars.KEYCRM_WAREHOUSE_KYIV_ID || '1' }}
-          KEYCRM_WAREHOUSE_LUTSK_ID: ${{ vars.KEYCRM_WAREHOUSE_LUTSK_ID || '1' }}
-          RESERVE_MODE: ${{ vars.RESERVE_MODE || 'ignore' }}
+          KEYCRM_BASE_URL: ${{ vars.KEYCRM_BASE_URL }}
+          KEYCRM_RATE_LIMIT_PER_MIN: ${{ vars.KEYCRM_RATE_LIMIT_PER_MIN }}
+          KEYCRM_WAREHOUSE_KYIV_ID: ${{ vars.KEYCRM_WAREHOUSE_KYIV_ID }}
+          KEYCRM_WAREHOUSE_LUTSK_ID: ${{ vars.KEYCRM_WAREHOUSE_LUTSK_ID }}
+          RESERVE_MODE: ${{ vars.RESERVE_MODE }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          GOOGLE_SHEET_GIDS: ${{ vars.GOOGLE_SHEET_GIDS || '1934858652,1441866253,1265295383,1829566062,0,588886751' }}
+          GOOGLE_SHEET_GIDS: ${{ vars.GOOGLE_SHEET_GIDS }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-          SHOPIFY_ENABLED: ${{ vars.SHOPIFY_ENABLED || 'true' }}
-          SHOPIFY_STORE_DOMAIN: ${{ vars.SHOPIFY_STORE_DOMAIN || 'tnwtdg-rm.myshopify.com' }}
+          SHOPIFY_ENABLED: ${{ vars.SHOPIFY_ENABLED }}
+          SHOPIFY_STORE_DOMAIN: ${{ vars.SHOPIFY_STORE_DOMAIN }}
           SHOPIFY_CLIENT_ID: ${{ secrets.SHOPIFY_CLIENT_ID }}
           SHOPIFY_CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET }}
           SHOPIFY_ADMIN_TOKEN: ${{ secrets.SHOPIFY_ADMIN_TOKEN }}
-          SHOPIFY_API_VERSION: ${{ vars.SHOPIFY_API_VERSION || '2025-01' }}
-          SHOPIFY_LOCATION_KYIV_ID: ${{ vars.SHOPIFY_LOCATION_KYIV_ID || '75696504907' }}
+          SHOPIFY_API_VERSION: ${{ vars.SHOPIFY_API_VERSION }}
+          SHOPIFY_LOCATION_KYIV_ID: ${{ vars.SHOPIFY_LOCATION_KYIV_ID }}
           SHOPIFY_LOCATION_LUTSK_ID: ${{ vars.SHOPIFY_LOCATION_LUTSK_ID }}
         run: |
+          # Apply defaults for vars not set in GitHub repository variables
+          export KEYCRM_BASE_URL="${KEYCRM_BASE_URL:-https://openapi.keycrm.app/v1}"
+          export KEYCRM_RATE_LIMIT_PER_MIN="${KEYCRM_RATE_LIMIT_PER_MIN:-18}"
+          export KEYCRM_WAREHOUSE_KYIV_ID="${KEYCRM_WAREHOUSE_KYIV_ID:-1}"
+          export KEYCRM_WAREHOUSE_LUTSK_ID="${KEYCRM_WAREHOUSE_LUTSK_ID:-1}"
+          export RESERVE_MODE="${RESERVE_MODE:-ignore}"
+          export GOOGLE_SHEET_GIDS="${GOOGLE_SHEET_GIDS:-1934858652,1441866253,1265295383,1829566062,0,588886751}"
+          export SHOPIFY_ENABLED="${SHOPIFY_ENABLED:-true}"
+          export SHOPIFY_STORE_DOMAIN="${SHOPIFY_STORE_DOMAIN:-tnwtdg-rm.myshopify.com}"
+          export SHOPIFY_API_VERSION="${SHOPIFY_API_VERSION:-2025-01}"
+          export SHOPIFY_LOCATION_KYIV_ID="${SHOPIFY_LOCATION_KYIV_ID:-75696504907}"
+
           ARGS=("sync")
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             ARGS+=("--dry-run")
