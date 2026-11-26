@@ -1,4 +1,4 @@
-﻿name: Sync Google Sheets to KeyCRM and Shopify
+name: Sync Google Sheets to KeyCRM and Shopify
 
 on:
   workflow_dispatch:
@@ -16,9 +16,8 @@ on:
   schedule:
     - cron: "0 6 * * *"
 
-concurrency:
-  group: keycrm-shopify-sync
-  cancel-in-progress: false
+permissions:
+  contents: read
 
 jobs:
   sync:
@@ -38,7 +37,6 @@ jobs:
         run: npm test
 
       - name: Run sync
-        id: run_sync
         env:
           KEYCRM_API_KEY: ${{ secrets.KEYCRM_API_KEY }}
           KEYCRM_BASE_URL: ${{ vars.KEYCRM_BASE_URL }}
@@ -86,27 +84,23 @@ jobs:
             const fs = require("fs");
             try {
               const s = JSON.parse(fs.readFileSync("sync-summary.json", "utf8"));
-              const counts = (s.plan || []).reduce((a,p)=>{ a[p.action]=(a[p.action]||0)+1; return a; },{});
+              const counts = (s.plan||[]).reduce((a,p)=>{ a[p.action]=(a[p.action]||0)+1; return a; },{});
               const lines = [
-                "## " + (s.dryRun ? "Dry Run" : "Live Sync") + " - KeyCRM and Shopify",
-                "- Products parsed: " + s.productsParsed,
-                "- Variants parsed: " + s.variantsParsed,
-                "- Existing offers found: " + s.existingOffersFound,
-                "- KeyCRM created / stocks updated: " + (s.keycrmCreated||0) + " / " + (s.keycrmStockUpdates||0),
-                "- Shopify created / stocks updated: " + (s.shopifyCreated||0) + " / " + (s.shopifyStockUpdates||0),
-                "- Warnings: " + (s.warnings||[]).length,
-                "",
-                "### Plan counts:",
-                "```json",
-                JSON.stringify(counts, null, 2),
-                "```"
+                "## "+(s.dryRun?"Dry Run":"Live Sync")+" - KeyCRM and Shopify",
+                "- Products parsed: "+s.productsParsed,
+                "- Variants parsed: "+s.variantsParsed,
+                "- Existing offers: "+s.existingOffersFound,
+                "- KeyCRM created/stocks: "+(s.keycrmCreated||0)+"/"+(s.keycrmStockUpdates||0),
+                "- Shopify created/stocks: "+(s.shopifyCreated||0)+"/"+(s.shopifyStockUpdates||0),
+                "- Warnings: "+(s.warnings||[]).length,
+                "","### Plan:","```json",JSON.stringify(counts,null,2),"```"
               ];
               if ((s.warnings||[]).length) {
-                lines.push("", "### Warnings:");
-                for (const w of (s.warnings||[]).slice(0,30)) lines.push("- " + w);
+                lines.push("","### Warnings:");
+                for (const w of (s.warnings||[]).slice(0,30)) lines.push("- "+w);
               }
-              fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
+              fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n")+"\n");
             } catch(err) {
-              fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, "Failed: " + err.message + "\n");
+              fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, "Failed: "+err.message+"\n");
             }
           '
