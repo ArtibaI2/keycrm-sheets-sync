@@ -1,0 +1,4 @@
+# Ensure LF line endings for workflow files on all platforms
+.github/workflows/*.yml text eol=lf
+*.js text eol=lf
+*.json text eol=lf
