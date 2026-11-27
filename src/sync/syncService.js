@@ -968,29 +968,27 @@ async function syncToShopify({ config, products, shopifyClient, summary, dryRun 
     }
   }
 
-  const inventoryQuantities = [];
+  const inventoryMap = new Map();
+  const pushStockEntry = (inventoryItemId, locationId, quantity) => {
+    const qty = Math.round(quantity);
+    const key = `${inventoryItemId}::${locationId}`;
+    const existing = inventoryMap.get(key);
+    if (existing) {
+      existing.quantity += qty;
+    } else {
+      inventoryMap.set(key, { inventoryItemId, locationId, quantity: qty });
+    }
+  };
   const queueStock = (inventoryItemId, v) => {
     if (!inventoryItemId) return;
     if (sameLocation && locationKyivId) {
-      inventoryQuantities.push({
-        inventoryItemId,
-        locationId: toShopifyLocationGid(locationKyivId),
-        quantity: Math.round(v.kyivQty + v.lutskQty),
-      });
+      pushStockEntry(inventoryItemId, toShopifyLocationGid(locationKyivId), v.kyivQty + v.lutskQty);
     } else {
       if (locationKyivId) {
-        inventoryQuantities.push({
-          inventoryItemId,
-          locationId: toShopifyLocationGid(locationKyivId),
-          quantity: Math.round(v.kyivQty),
-        });
+        pushStockEntry(inventoryItemId, toShopifyLocationGid(locationKyivId), v.kyivQty);
       }
       if (locationLutskId) {
-        inventoryQuantities.push({
-          inventoryItemId,
-          locationId: toShopifyLocationGid(locationLutskId),
-          quantity: Math.round(v.lutskQty),
-        });
+        pushStockEntry(inventoryItemId, toShopifyLocationGid(locationLutskId), v.lutskQty);
       }
     }
   };
@@ -1118,6 +1116,7 @@ async function syncToShopify({ config, products, shopifyClient, summary, dryRun 
     }
   }
 
+  const inventoryQuantities = [...inventoryMap.values()];
   if (inventoryQuantities.length > 0) {
     summary.plan.push({
       action: "SHOPIFY_UPDATE_STOCKS",
