@@ -820,6 +820,11 @@ function getColorSynonyms(color) {
   }
   if (c === "gray" || c === "grey") syns.add("silver");
   if (c === "rubby red") syns.add("red");
+  if (c === "bordo" || c === "бордо") {
+    syns.add("burgundy");
+    syns.add("bordo-5c0120");
+  }
+  if (c === "burgundy") syns.add("bordo");
   if (c.includes("/")) {
     for (const part of c.split("/")) {
       const p = part.trim();
